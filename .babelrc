@@ -8,7 +8,10 @@
     }],
     "stage-2"
   ],
-  "plugins": ["transform-runtime", "add-module-exports", "transform-es2015-modules-umd"],
+  "plugins": ["transform-runtime", "add-module-exports", "transform-es2015-modules-umd", ["component", [{
+    "libraryName": "element-ui",
+    "styleLibraryName": "theme-chalk"
+  }]]],
   "env": {
     "test": {
       "presets": ["env", "stage-2"],

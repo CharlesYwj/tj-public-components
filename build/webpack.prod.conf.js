@@ -15,7 +15,7 @@ var env = process.env.NODE_ENV === 'testing'
 
 var webpackConfig = merge(baseWebpackConfig, {
   entry: {
-    'vue-uploader': './src/index.js'
+    'public-components': './src/index.js'
   },
   module: {
     rules: utils.styleLoaders({
@@ -26,7 +26,7 @@ var webpackConfig = merge(baseWebpackConfig, {
   output: {
     path: config.build.assetsRoot,
     filename: utils.assetsPath('[name].js'),
-    library: 'vue-uploader',
+    library: 'public-components',
     libraryTarget: 'umd'
   },
   plugins: [

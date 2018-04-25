@@ -1,39 +1,34 @@
-export function getUploader (component) {
-  let parent = component.$parent
-  while (parent) {
-    if (parent.uploader) {
-      return parent.uploader
-    } else {
-      parent = parent.$parent
+/**
+ * 通过后缀名返回文件类型
+ * @export {function}
+ * @param {String} extension 文件后缀名
+ * @returns {string} 文件类型
+ */
+export function extension2Type(extension) {
+  let result = null;
+  const typeMap = {
+    image: ["png", "jpg", "gif"],
+    word: ["doc", "docx", "wps"],
+    excel: ["xls", "xlsx"],
+    ppt: ["ppt", "pptx"],
+    txt: ["txt"],
+    pdf: ["pdf"],
+    zip: ["zip", "rar", "7z"]
+  };
+  Object.keys(typeMap).forEach(type => {
+    if (typeMap[type].indexOf(extension.toLowerCase()) > -1) {
+      result = type;
     }
-  }
-  return null
+  });
+  return result;
 }
-
-export function secondsToStr (temp) {
-  const years = Math.floor(temp / 31536000)
-  if (years) {
-    return years + ' year' + numberEnding(years)
-  }
-  const days = Math.floor((temp %= 31536000) / 86400)
-  if (days) {
-    return days + ' day' + numberEnding(days)
-  }
-  const hours = Math.floor((temp %= 86400) / 3600)
-  if (hours) {
-    return hours + ' hour' + numberEnding(hours)
-  }
-  const minutes = Math.floor((temp %= 3600) / 60)
-  if (minutes) {
-    return minutes + ' minute' + numberEnding(minutes)
-  }
-  const seconds = temp % 60
-  return seconds + ' second' + numberEnding(seconds)
-  function numberEnding (number) {
-    return (number > 1) ? 's' : ''
-  }
-}
-
-export function kebabCase (s) {
-  return s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
+/**
+ * 通过文件名返回后缀名
+ * @export {function}
+ * @param {string} fileName 文件名字
+ * @returns {string} 文件后缀名
+ */
+export function getExtension(fileName) {
+  const extension = fileName.split(".")[fileName.split(".").length - 1];
+  return extension;
 }

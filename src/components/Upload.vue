@@ -11,7 +11,7 @@
     </div>
     <div class="tips" v-if="isIE10Plus">IE浏览器不支持上传空文件以及名字为“.”的文件</div>
     <template>
-      <div class="existed-file-list file" v-for="file in existedFiles" :key="file.id" :file="file">
+      <div class="existed-file-list file" v-for="file in existedFiles" :key="file.id">
         <slot :file="file" name="existed-file">
           <div class="file-name"><i class="fa" :class="file.oldName | fileExtension | fileIcon"></i>{{file.oldName}}</div>
           <div class="file-size">{{file.docSize}}</div>
@@ -41,6 +41,7 @@
           <uploader-file class="file" v-for="file in fileList.fileList" :key="file.id" :list="true" :file="file">
               <template slot-scope="uploadFile">
                 <slot :file="uploadFile" name="upload-file">
+                    <div class="hide">{{uploadFile}}</div>
                     <div class="file-name"><i class="fa" :class="uploadFile.extension | fileIcon"></i>{{uploadFile.file.name}}</div>
                     <div class="file-size">{{uploadFile.file.size/1024>1024?(uploadFile.file.size/1024/1024).toFixed(2)+"MB":(uploadFile.file.size/1024).toFixed(2)+"KB"}}</div>
                     <div class="file-status">{{uploadFile.status | statusFilter}}</div>
@@ -176,6 +177,11 @@ export default {
     //限制文件大小，单位为KB
     limitSize: {
       type: Number
+    },
+    //是否仅从视图删除
+    willDelByView: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -191,11 +197,12 @@ export default {
       expectExtensions: [], //期望文件后缀名
       //已添加的附件个数
       addedNum: (() => {
-        return Array.isArray(this.fileIds) ? this.fileIds.length : 1;
+        return Array.isArray(this.fileIds)
+          ? this.fileIds.length
+          : this.fileIds.split(",").length;
       })(),
       waitingNum: 0,
-      isIE10Plus: (() => window.navigator.msPointerEnabled)(),
-      previewURL: ""
+      isIE10Plus: (() => window.navigator.msPointerEnabled)()
     };
   },
   filters: {
@@ -243,27 +250,61 @@ export default {
       this.uploader.upload();
     },
     /**
-     * 发送删除请求删除指定文件
-     * @param file {object} 要删除的文件
-     * @param idKey {string} 文件唯一标识符字段名
+     * 发送删除请求删除指定id文件
+     * @param ids {object} 要删除的文件的唯一标识符
      */
-    postDeleteRequest(file, idKey = "_fileId") {
-      let pro = new Promise((resolve, reject) => {
+    postDeleteRequest(ids) {
+      return new Promise((resolve, reject) => {
         axios
           .post(
             this.APIMap.get("delete"),
             qs.stringify({
-              ids: [file[idKey]].join(",")
+              ids: Array.isArray(ids) ? ids.join(",") : ids
             })
           )
           .then(res => {
-            if (res.data === file[idKey]) {
+            let idsArr = Array.isArray(ids) ? ids : ids.split(",");
+            let resIdsArr = res.data.split(",");
+            let willResolve = idsArr.length === resIdsArr.length;
+            // let includeIdArr = [];
+            if (!willResolve) {
+              reject(res.data);
+              return;
+            }
+            willResolve = resIdsArr.every(id => resIdsArr.indexOf(id) > -1);
+            if (willResolve) {
+              console.log("ss");
+              resolve(res.data);
+            } else {
+              reject(res.data);
+            }
+          })
+          .catch(err => {
+            // this.$message({
+            //   type: "info",
+            //   message: "删除失败"
+            // });
+            console.error(err);
+          });
+      });
+    },
+    /**
+     * 发送删除请求删除指定文件
+     * @param file {object} 要删除的文件
+     * @param idKey {string} 文件唯一标识符字段名
+     */
+    delFilesAsync(file, idKey = "_fileId") {
+      return new Promise((resolve, reject) => {
+        this.postDeleteRequest()
+          .then(data => {
+            if (data === file[idKey]) {
               resolve(file);
             } else {
               this.$message({
                 type: "info",
                 message: "删除失败"
               });
+              reject(data);
             }
           })
           .catch(err => {
@@ -271,10 +312,10 @@ export default {
               type: "info",
               message: "删除失败"
             });
+            reject(err);
             console.error(err);
           });
       });
-      return pro;
     },
     /**
      * 从uploadedIds及uploadedFiles数组中删除文件id，此操作仅为视图层面的删除，不与后台、数据库交互
@@ -299,7 +340,14 @@ export default {
       const uploader = this.uploader;
       function delByView(file) {
         vm.addedNum--;
-        if (!isExistedFile) {
+        vm.delFromUploadedList(file._fileId);
+        if (isExistedFile) {
+          vm.existedFiles.forEach((element, index) => {
+            if (element.id === file._fileId) {
+              vm.existedFiles.splice(index, 1);
+            }
+          });
+        } else {
           uploader.removeFile(file);
         }
         vm.$message({ message: "删除成功", type: "success" });
@@ -315,18 +363,13 @@ export default {
             isExistedFile ||
             (typeof file.isComplete === "function" && file.isComplete())
           ) {
-            vm.postDeleteRequest(file).then(file => {
+            if (this.willDelByView) {
               delByView(file);
-              vm.delFromUploadedList(file._fileId);
-              if (isExistedFile) {
-                vm.existedFiles.forEach((element, index) => {
-                  if (element.id === file._fileId) {
-                    vm.existedFiles.splice(index, 1);
-                    vm.addedNum--;
-                  }
-                });
-              }
-            });
+            } else {
+              vm.delFilesAsync(file).then(file => {
+                delByView(file);
+              });
+            }
           } else {
             vm.waitingNum--;
             delByView(file);
@@ -444,6 +487,7 @@ export default {
     loadFiles(ids, willReplace = false) {
       const vm = this;
       if (ids === "") {
+        this.existedFiles = [];
         return false;
       }
       axios
@@ -514,6 +558,13 @@ export default {
         existedNum: vm.existedFiles.length,
         waitingNum: vm.waitingNum
       };
+    },
+    resetUpload() {
+      this.fileIds = [];
+      this.uploadedFiles = [];
+      this.existedFiles = [];
+      this.addedNum = 0;
+      this.waitingNum = 0;
     }
   },
   watch: {
@@ -523,6 +574,7 @@ export default {
     },
     fileIds(val) {
       this.loadFiles(this._fileIds);
+      this.addedNum = Array.isArray(val) ? val.length : val.split(",").length;
     },
     docURL(value) {
       const uploadAPI = this.APIMap.get("upload");

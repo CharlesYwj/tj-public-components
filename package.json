@@ -1,6 +1,6 @@
 {
   "name": "tj-public-components",
-  "version": "1.0.17",
+  "version": "1.0.20",
   "description": "Some public components in tj project",
   "main": "dist/public-components.js",
   "author": "ywj0627@163.com",

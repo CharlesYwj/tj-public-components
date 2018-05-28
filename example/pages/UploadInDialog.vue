@@ -1,12 +1,11 @@
 <template>
   <div>
     <el-button @click="changeFileIds">changeFileIds</el-button>
-    <el-button @click="delFiles">delFiles</el-button>
-    <upload :limitNum="2" ref="upload" :docURL="docURL" :fileIds="fileIds"  :options="options" @listChange="listChange">
-      <template slot="file-actions-slot" slot-scope="props">
-        <a src="javascript:void(0);" @click="view(props.file)">查看</a>
-      </template>
-    </upload>
+    <el-button @click="resetFileIds">resetFileIds</el-button>
+    <el-button @click="showDialog">showDialog</el-button>
+    <el-dialog :visible.sync="visible">
+        <upload ref="upload" :docURL="docURL" :fileIds="fileIds"  :options="options" @listChange="listChange"></upload>
+    </el-dialog>
   </div>
 </template>
 
@@ -24,7 +23,8 @@ export default {
       docURL: "",
       options: {
         chunkSize: 2 * 1024
-      }
+      },
+      visible: false
     };
   },
   methods: {
@@ -44,10 +44,11 @@ export default {
     view(file) {
       console.log("file", file);
     },
-    delFiles() {
-      this.$refs.upload.postDeleteRequest([
-        "comm00008a2de756dd284e959d98bfe065a50426"
-      ]);
+    resetFileIds() {
+      this.fileIds = [];
+    },
+    showDialog() {
+      this.visible = true;
     }
   }
 };

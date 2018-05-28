@@ -104,7 +104,7 @@ export default {
         }
       ];
     }, 400);
-    // this.$refs.test.setWillOpen(false);
+    this.$refs.test.setWillOpen(false);
     // axios.post("/api/teammanagerunit/query").then(res => {
     //   this.testData = list2tree(res.data.data, "id", "unitSubjectionParentId");
     // });

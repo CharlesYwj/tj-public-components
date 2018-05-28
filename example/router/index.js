@@ -7,6 +7,7 @@ import UploadDemo from '../pages/UploadDemo.vue';
 import DownloadDemo from "../pages/DownloadDemo.vue";
 import TreeDialog from "../pages/TreeDialogDemo.vue";
 import DownloadSlotDemo from "../pages/DownloadSlotDemo.vue";
+import UploadInDialog from "../pages/UploadInDialog.vue";
 
 const router = new Router({
   routes: [{
@@ -24,6 +25,9 @@ const router = new Router({
     {
       path: "/downloadSlot",
       component: DownloadSlotDemo
+    }, {
+      path: "/uploadInDialog",
+      component: UploadInDialog
     }
   ]
 });

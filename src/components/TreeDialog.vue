@@ -6,12 +6,13 @@
         :readonly="!selectNotExist"
         class="result-input"
         @click="handleClickInput" />
-      <el-dialog 
+      <el-dialog
         :visible.sync="dialogVisible" 
         :title="dialogTitle"
         :custom-class	="dialogClass"
         :width="dialogWidth"
         :fullscreen="fullscreen"
+        :append-to-body="appendToBody"
         @open="dialogOpen"
         @close="dialogClose"
         >
@@ -165,6 +166,10 @@ export default {
       default: false
     },
     chekedWithAllLeaves: {
+      type: Boolean,
+      default: false
+    },
+    appendToBody: {
       type: Boolean,
       default: false
     }

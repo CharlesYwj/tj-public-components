@@ -2,7 +2,10 @@
   <div>
     <el-button @click="changeFileIds">changeFileIds</el-button>
     <el-button @click="delFiles">delFiles</el-button>
-    <upload :limitNum="2" ref="upload" :docURL="docURL" :fileIds="fileIds"  :options="options" @listChange="listChange">
+    <el-button @click="reset">resetUpload</el-button>
+    <upload ref="upload" :docURL="docURL" :fileIds="fileIds"  :options="options" 
+          @listChange="listChange" @click-delete-btn="clickDeleteBtn" 
+          @after-delete-confirm="afterDeleteConfirm" @dialog-toggle="dialogToggle">
       <template slot="file-actions-slot" slot-scope="props">
         <a src="javascript:void(0);" @click="view(props.file)">查看</a>
       </template>
@@ -48,6 +51,18 @@ export default {
       this.$refs.upload.postDeleteRequest([
         "comm00008a2de756dd284e959d98bfe065a50426"
       ]);
+    },
+    reset(){
+      this.$refs.upload.resetUpload();
+    },
+    clickDeleteBtn(){
+      console.log("sss");
+    },
+    afterDeleteConfirm(){
+      console.log("ss");
+    },
+    dialogToggle(status){
+      console.log(status);
     }
   }
 };

@@ -10,73 +10,46 @@
         <button type="button" v-if="!autoStart" class="uploader-btn start-upload" @click="upload">开始上传</button>
     </div>
     <div class="tips" v-if="isIE10Plus">IE浏览器不支持上传空文件以及名字为“.”的文件</div>
+    <!-- 已上传文件列表Start -->
     <template>
-      <div class="existed-file-list file" v-for="file in existedFiles" :key="file.id">
+      <div class="existed-file-list" v-for="file in existedFiles" :key="file.id">
         <slot :file="file" name="existed-file">
-          <div class="file-name"><i class="fa" :class="file.oldName | fileExtension | fileIcon"></i>{{file.oldName}}</div>
-          <div class="file-size">{{file.docSize}}</div>
-          <div class="file-finished">
-            已上传
-          </div>
-          <div class="file-actions">
-            <a  href="javascript:void(0);" v-if="file.type === 'image'" title="预览" @click="previewImg(file)">
-              <i class="fa fa-eye"></i>
-            </a>
-            <a :href="docURL+'/doc/download/'+file.id">
-                <i class="fa fa-download"></i>
-            </a>
-            <a href="javascript:void(0);" v-if="canUpload" @click="del(file,true)">
-              <i class="fa fa-times"></i>
-            </a>
-            <slot name="file-actions-slot" :file="file"></slot>
-          </div>
-          <el-dialog class="preview" :visible.sync="file.dialogVisible" @close="dialogClose">
-            <img :src="docURL + file.docUrl" class="preview-image">
-          </el-dialog>
+          <file :file="file" :docURL="docURL" @delete-file="deleteFile(file,true)" @preview-image="previewImg">
+            <template slot="file-actions-slot" slot-scope="scope">
+              <slot name="file-actions-slot" :file="file"></slot>
+              <slot name="existed-file-actions-slot" :file="file"></slot>
+              <slot name="uploaded-file-actions-slot" :file="file"></slot>
+            </template>
+          </file>
         </slot>
       </div>
     </template>
+    <!-- 已上传文件列表End -->
     <uploader-list>
-        <template slot-scope="fileList"> 
-          <uploader-file class="file" v-for="file in fileList.fileList" :key="file.id" :list="true" :file="file">
+        <template slot-scope="scope"> 
+          <uploader-file v-for="file in scope.fileList" :key="file.id" :list="true" :file="file">
               <template slot-scope="uploadFile">
                 <slot :file="uploadFile" name="upload-file">
-                    <div class="hide">{{uploadFile}}</div>
-                    <div class="file-name"><i class="fa" :class="uploadFile.extension | fileIcon"></i>{{uploadFile.file.name}}</div>
-                    <div class="file-size">{{uploadFile.file.size/1024>1024?(uploadFile.file.size/1024/1024).toFixed(2)+"MB":(uploadFile.file.size/1024).toFixed(2)+"KB"}}</div>
-                    <div class="file-status">{{uploadFile.status | statusFilter}}</div>
-                    <div class="file-progress">
-                      <div class="file-progress-wrap">
-                        <div class="file-progress-current" 
-                            :style="{width:(uploadFile.file._prevProgress).toFixed(3)*100+'%'}"
-                            :class="{'success':uploadFile.file._prevProgress === 1 &&  !uploadFile.file.error,
-                                      'error':uploadFile.file.error}"
-                        >
-                        </div>
-                        <span class="file-progress-number">{{(uploadFile.file._prevProgress).toFixed(3)*100+'%'}}</span>
-                      </div>
-                    </div>
-                    <div class="file-actions">
-                      <a href="javascript:void(0);" title="预览" @click="previewImg(uploadFile.file)" v-if="uploadFile.fileCategory === 'image' && uploadFile.status ==='success'">
-                        <i class="fa fa-eye"></i>
-                      </a>
-                      <a href="javascript:void(0);" @click="pause(uploadFile)" v-if="uploadFile.status!=='success'">
-                        <i class="fa fa-pause"></i>
-                      </a>
-                      <a href="javascript:void(0);" @click="del(uploadFile)">
-                        <i class="fa fa-times"></i>
-                      </a>
-                      <slot name="file-actions-slot" :file="uploadFile.file"></slot>
-                    </div>
-                    <el-dialog class="preview" :visible.sync="uploadFile.file.dialogVisible" @close="dialogClose">
-                      <img :src="docURL + uploadFile.file._fileUrl" class="preview-image">
-                    </el-dialog>
-                    <div class="hide">{{uploadFile}}</div>
+                    <file :isExisted="false" :file="uploadFile.file" :uploadFile="uploadFile" 
+                      :docURL="docURL" :canUpload="canUpload" @delete-file="deleteFile(uploadFile,false)"
+                       @preview-image="previewImg">
+                      <template slot="file-actions-slot">
+                        <slot name="file-actions-slot" :file="file"></slot>
+                        <slot v-if="uploadFile.status === 'success'" name="uploaded-file-actions-slot" :uploadFile="uploadFile" :file="scope.file"></slot>
+                        <slot v-if="uploadFile.status === 'waiting'" name="waiting-upload-file-actions-slot" :uploadFile="uploadFile" :file="scope.file"></slot>
+                        <slot v-if="uploadFile.status === 'success'" name="existed-file-actions-slot" :file="file"></slot>
+                      </template>
+                    </file>
                 </slot>
               </template>
           </uploader-file>
         </template>
     </uploader-list>
+    <!-- 图片预览Start -->
+    <el-dialog class="preview" :visible.sync="dialogVisible" :append-to-body="isInDialog" @close="dialogClose">
+      <img :src="docURL + previewImageUrl" class="preview-image" />
+    </el-dialog>
+    <!-- 图片预览End -->
   </uploader>
 </template>
 
@@ -89,7 +62,135 @@ import {
   typeFilterMixin
 } from "../common/mixins";
 import { getExtension, extension2Type } from "../common/utils";
+import File from "../components/File";
 import url from "url";
+/**
+ * 文件列表类
+ * @class
+ */
+class FileList {
+  /**
+   * @param {string} idKey 唯一标识符属性名
+   */
+  constructor(idKey = "_fileId") {
+    this.idKey = idKey;
+    this.list = [];
+    this.idList = [];
+  }
+  /**
+   * 新增（多个）文件至文件列表
+   * @param {object | array} file 要新增的文件(列表)
+   */
+  add(file) {
+    /**
+     * 新增单个文件至文件列表
+     * @param {object} item 要新增的文件
+     */
+    function addItem(item) {
+      const id = item[this.idKey];
+      if (!this.hasFile(item)) {
+        this.list.push(item);
+        this.idList.push(id);
+      }
+    }
+    if (Array.isArray(file)) {
+      file.forEach(item => addItem.call(this, item));
+    } else {
+      addItem.call(this, file);
+    }
+  }
+  /**
+   * 从文件列表中删除（多个）文件
+   * @param {object|array} file 要删除的文件(列表)
+   */
+  remove(file) {
+    function removeItem(item) {
+      const id = item[this.idKey];
+      if (this.hasFile(item)) {
+        const index = this.idList.indexOf(id);
+        this.list.splice(index, 1);
+        this.idList.splice(index, 1);
+      }
+    }
+    if (Array.isArray(file)) {
+      file.forEach(item => removeItem.call(this, item));
+    } else {
+      removeItem.call(this, file);
+    }
+  }
+  /**
+   * 判断文件列表是否有该文件
+   * @param {object} file 要判断的文件
+   */
+  hasFile(file) {
+    const id = file[this.idKey];
+    return this.idList.indexOf(id) > -1;
+  }
+  /**
+   * 重置文件列表
+   */
+  clear() {
+    this.list = [];
+    this.idList = [];
+  }
+  getLenth() {
+    return this.list.length;
+  }
+}
+
+/**
+ * 统计上传组件目前有多少文件已添加、已上传、待上传等数量
+ * @class
+ */
+class UploadNumber {
+  constructor() {
+    //已添加文件数量（包含已上传文件）
+    this.addedNum = 0;
+    //待上传文件数量（点击选取文件按钮后）
+    this.waitingNum = 0;
+  }
+  /**
+   * 批量添加文件
+   * @param {number} number 批量添加的文件数量
+   */
+  addFiles(number) {
+    this.addedNum += number;
+  }
+  /**
+   * 单一添加文件
+   * @param {boolean} isWaitingFile 该文件是否未待上传文件
+   */
+  addFile(isWaitingFile = false) {
+    this.addedNum++;
+    if (isWaitingFile) {
+      this.waitingNum++;
+    }
+  }
+  /**
+   * 单一移除文件
+   * @param {boolean} isWaitingFile 该文件是否是待上传文件
+   */
+  removeFile(isWaitingFile = false) {
+    this.addedNum--;
+    if (isWaitingFile) {
+      this.waitingNum--;
+    }
+  }
+  /**
+   * 批量上传文件
+   */
+  uploadFiles() {
+    this.waitingNum = 0;
+  }
+  /**
+   * 重置附件列表
+   */
+  clear() {
+    this.addedNum = 0;
+    this.waitingNum = 0;
+  }
+}
+
 export default {
   mixins: [iconFilterMixin, apiDataMixin, typeFilterMixin],
   created() {
@@ -123,9 +224,8 @@ export default {
       if (JSON.parse(message).now_id) {
         vm.$set(file, "_fileId", JSON.parse(message).now_id);
         vm.$set(file, "_fileUrl", JSON.parse(message).now_url);
-        vm.uploadedIds.push(JSON.parse(message).now_id);
-        vm.uploadedFiles.push(file);
-        vm.waitingNum--;
+        vm.uploadedFileMap.add(file);
+        vm.uploadNumberMap.removeFile(true);
       } else {
         if (JSON.parse(message).info) {
           vm.$message({
@@ -187,41 +287,34 @@ export default {
     autoStart: {
       type: Boolean,
       default: false
+    },
+    //是否在弹窗中，旨在解决上传组件因在弹窗中而导致的图片预览不正常的情况
+    isInDialog: {
+      type: Boolean,
+      default: false
+    },
+    //唯一标识符，解决多个upload组件下listChange事件无法获知哪个组件的问题
+    identifier: {
+      type: [String, Number],
+      default: "Upload"
     }
   },
   data() {
     return {
-      uploadedIds: [], //已上传文件id列表
-      uploadedFiles: [], //已上传文件列表
-      existedFiles: [], //初始化文件列表
+      existedFileList: new FileList(),
       attrs: {
         accept: this.types
       },
       involveTypes: [], //大类，即包含*的类型
       specificTypes: [], //具体类型，即不含*的类型
       expectExtensions: [], //期望文件后缀名
-      //已添加的附件个数
-      addedNum: (() => {
-        return Array.isArray(this.fileIds)
-          ? this.fileIds.length
-          : this.fileIds.split(",").length;
-      })(),
-      waitingNum: 0,
-      isIE10Plus: (() => window.navigator.msPointerEnabled)(),
-      delByViewIdsCache: [] //从视图删除的id缓存集合
+      uploadedFileMap: new FileList(),
+      uploadNumberMap: new UploadNumber(),
+      isIE10Plus: (() => window.navigator.msPointerEnabled)(), //是否是IE10以上的浏览器
+      deletedFromViewIdsCache: [], //从视图删除的id缓存集合
+      previewImageUrl: "",
+      dialogVisible: false
     };
-  },
-  filters: {
-    statusFilter(status) {
-      let fileStatusText = {
-        success: "成功",
-        error: "失败",
-        uploading: "上传中",
-        paused: "暂停",
-        waiting: "等待"
-      };
-      return fileStatusText[status] || "";
-    }
   },
   computed: {
     uploader() {
@@ -249,14 +342,32 @@ export default {
         chunkSize: 100 * 1024 * 1024,
         testChunks: false
       });
-    }
+    },
+    //初始化文件列表
+    existedFiles() {
+      return this.existedFileList.list;
+    },
+    addedNum() {
+      return this.uploadNumberMap.addedNum;
+    },
+    waitingNum() {
+      return this.uploadNumberMap.waitingNum;
+    },
+    //已上传文件id列表
+    uploadedIds() {
+      return this.uploadedFileMap.idList;
+    },
+    //已上传文件列表
+    uploadedFiles() {
+      return this.uploadedFileMap.list;
+    } //已上传文件列表
   },
   methods: {
     upload() {
       this.uploader.upload();
     },
     /**
-     * @description 发送删除请求删除指定id文件
+     * 发送删除请求删除指定id文件
      * @param ids {object} 要删除的文件的唯一标识符
      */
     postDeleteRequest(ids) {
@@ -269,166 +380,228 @@ export default {
             })
           )
           .then(res => {
-            let idsArr = Array.isArray(ids) ? ids : ids.split(",");
-            let resIdsArr = res.data.split(",");
-            let willResolve = idsArr.length === resIdsArr.length;
-            // let includeIdArr = [];
-            if (!willResolve) {
-              reject(res.data);
-              return;
-            }
-            willResolve = resIdsArr.every(id => resIdsArr.indexOf(id) > -1);
-            if (willResolve) {
-              resolve(res.data);
-            } else {
-              reject(res.data);
-            }
+            resolve(res.data);
           })
           .catch(err => {
-            // this.$message({
-            //   type: "info",
-            //   message: "删除失败"
-            // });
+            reject(err);
             console.error(err);
           });
       });
     },
     //TODO: 待测试deleteFilesNotInView
     /**
-     * @description 从服务器删除已在视图删除的文件
+     * 从服务器删除已在视图删除的文件
      */
     deleteFilesNotInView() {
-      return this.postDeleteRequest(this.delByViewIdsCache);
+      return this.postDeleteRequest(this.deletedFromViewIdsCache);
     },
     /**
-     * @description 发送删除请求删除指定文件
-     * @param file {object} 要删除的文件
-     * @param idKey {string} 文件唯一标识符字段名
+     * 从simple-uploaer组件的附件列表中删除附件
+     * @param {object} fileSlot  附件
+     * @param {boolean} isExistedFile 该附件是否是原有附件（即非此次上传的）
      */
-    delFileAsync(file, idKey = "_fileId") {
-      return new Promise((resolve, reject) => {
-        this.postDeleteRequest(file[idKey])
-          .then(data => {
-            if (data === file[idKey]) {
-              resolve(file);
-            } else {
-              this.$message({
-                type: "info",
-                message: "删除失败"
-              });
-              reject(data);
-            }
-          })
-          .catch(err => {
-            this.$message({
-              type: "info",
-              message: "删除失败"
-            });
-            reject(err);
-            console.error(err);
-          });
-      });
-    },
-    /**
-     * @description 从uploadedIds及uploadedFiles数组中删除文件id，此操作仅为视图层面的删除，不与后台、数据库交互
-     * @param fileId {string} 要删除的文件id
-     */
-    delFromUploadedList(fileId) {
-      function delEleByFileIdFromArr(arr, id) {
-        arr.forEach((ele, index) => {
-          if (ele._fileId === id) {
-            arr.splice(index, 1);
-          }
-        });
-      }
-      const vm = this;
-      let uploaderFileList = vm.uploader.fileList;
-      let uploaderFiles = vm.uploader.files;
-      delEleByFileIdFromArr(uploaderFileList, fileId);
-      delEleByFileIdFromArr(uploaderFiles, fileId);
-      delEleByFileIdFromArr(vm.uploadedFiles, fileId);
-      vm.uploadedIds.splice(vm.uploadedIds.indexOf(fileId), 1);
-    },
-    /**
-     * @description 从simple-uploaer组件的附件列表中删除附件
-     * @param fileSlot {object} 附件
-     * @param isExistedFile {boolean} 该附件是否是原有附件（即非此次上传的）
-     */
-    del(fileSlot, isExistedFile = false) {
+    deleteFile(fileSlot, isExistedFile = false) {
       const vm = this;
       const uploader = this.uploader;
       const file = isExistedFile ? fileSlot : fileSlot.file;
-      function delByView(file) {
-        vm.addedNum--;
-        vm.delFromUploadedList(file._fileId);
-        if (isExistedFile) {
-          vm.existedFiles.forEach((element, index) => {
-            if (element.id === file._fileId) {
-              vm.existedFiles.splice(index, 1);
+      /**
+       * 从uploadedIds及uploadedFiles数组中删除文件id，此操作仅为视图层面的删除，不与后台、数据库交互
+       * @param {string} fileId 要删除的文件id
+       */
+      function deleteFromUploadedList(fileId) {
+        function delEleByFileIdFromArr(arr, id) {
+          arr.forEach((ele, index) => {
+            if (ele._fileId === id) {
+              arr.splice(index, 1);
             }
           });
+        }
+        const vm = this;
+        let uploaderFileList = vm.uploader.fileList;
+        let uploaderFiles = vm.uploader.files;
+        delEleByFileIdFromArr(uploaderFileList, fileId);
+        delEleByFileIdFromArr(uploaderFiles, fileId);
+        this.uploadedFileMap.remove(file);
+      }
+      /**
+       * 从视图中删除附件
+       * @param {object} file 要删除的文件
+       * @param {boolean} isUploaded 该文件是否已经上传完成
+       */
+      function deleteFromView(file, isUploaded = true) {
+        vm.uploadNumberMap.removeFile(isUploaded);
+        deleteFromUploadedList.call(vm, file._fileId);
+        if (isExistedFile) {
+          this.existedFileList.remove(file);
         } else {
           uploader.removeFile(file);
         }
         vm.$message({ message: "删除成功", type: "success" });
       }
-      this.$emit("click-delete-btn");
+      /**
+       * 发送删除请求删除指定文件
+       * @param file {object} 要删除的文件
+       * @return {object} Promise
+       */
+      function deleteFileAsync(file) {
+        return new Promise((resolve, reject) => {
+          vm
+            .postDeleteRequest(file._fileId)
+            .then(data => {
+              if (data === file._fileId) {
+                resolve(file);
+              } else {
+                this.$message({
+                  type: "info",
+                  message: "删除失败"
+                });
+                reject(data);
+              }
+            })
+            .catch(err => {
+              this.$message({
+                type: "info",
+                message: "删除失败"
+              });
+              reject(err);
+              console.error(err);
+            });
+        });
+      }
+      this.$emit("click-delete-btn", this.identifier);
       this.$confirm("是否删除该附件", "提示", {
         confirmButtonText: "确定",
         cancelButtonText: "取消",
         type: "warning"
       })
         .then(() => {
+          //如果是已经上传完成的文件
           if (
             isExistedFile ||
             (typeof file.isComplete === "function" && file.isComplete())
           ) {
+            //如果是仅从视图删除文件模式
             if (this.willDelByView) {
-              delByView(file);
-              this.delByViewIdsCache.push(file._fileId);
-              this.$emit("after-delete-confirm", true, file._fileId);
+              deleteFromView(file);
+              this.deletedFromViewIdsCache.push(file._fileId);
+              this.$emit(
+                "after-delete-confirm",
+                true,
+                file._fileId,
+                this.identifier
+              );
             } else {
-              vm.delFileAsync(file).then(file => {
-                delByView(file);
-                this.$emit("after-delete-confirm", true, file._fileId);
+              deleteFileAsync(file).then(file => {
+                deleteFromView(file);
+                this.$emit(
+                  "after-delete-confirm",
+                  true,
+                  file._fileId,
+                  this.identifier
+                );
               });
             }
           } else {
-            vm.waitingNum--;
-            delByView(file);
-            this.$emit("after-delete-confirm", true, file._fileId);
+            deleteFromView(file, false);
+            this.$emit(
+              "after-delete-confirm",
+              true,
+              file._fileId,
+              this.identifier
+            );
           }
         })
-        .catch(() => this.$emit("after-delete-confirm", false, file._fileId));
+        .catch(() =>
+          this.$emit(
+            "after-delete-confirm",
+            false,
+            file._fileId,
+            this.identifier
+          )
+        );
     },
     pause(fileSlot) {
       fileSlot.file.pause();
     },
     /**
-     * @description 预览simple-upload组件中的图片预览操作
+     * 预览simple-upload组件中的图片预览操作
      * @param file {object} 文件
      */
     previewImg(file) {
-      this.$emit("dialog-open");
-      this.$emit("dialog-toggle", true);
-      file.dialogVisible = true;
+      this.previewImageUrl = file.docUrl;
+      const previewImage = this.$el.querySelector(".preview-image");
+      if (previewImage !== null) {
+        //避免弹窗打开时图片仍然是上次预览的图片
+        this.$el.querySelector(".preview-image").onload = () => {
+          this.dialogVisible = true;
+        };
+      } else {
+        this.dialogVisible = true;
+      }
     },
     /**
-     * @description 弹窗关闭时的回调函数
+     * 弹窗关闭时的回调函数
      */
     dialogClose() {
-      this.$emit("dialog-close");
-      this.$emit("dialog-toggle", false);
+      this.dialogVisible = false;
     },
     /**
-     * @description 选取文件后的回调方法
-     * @param file {object} 所选取的文件
+     * 选取文件后的回调方法
+     * @param {object} file 所选取的文件
      */
     fileAdded(file) {
-      this.$set(file, "dialogVisible", false);
       const vm = this;
-      const validateTypeResult = this.validateType(file);
-      const validateSizeResult = this.validateSize(file);
+      /**
+       * 类型判断
+       * @function
+       * @param {object} file 需要判断的文件
+       * @return {boolean}
+       */
+      const validateType = file => {
+        const fileType = file.fileType;
+        const fileName = file.name;
+        const extension = fileName.split(".")[fileName.split(".").length - 1];
+        let _result = false;
+        //具体mime类型
+        if (this.specificTypes.indexOf(fileType) > -1) {
+          return true;
+        }
+        //包含*的mime类型
+        this.involveTypes.forEach(ele => {
+          const _type = ele.match(/([^*]*)\*$/)[1];
+          if (fileType.indexOf(_type) > -1) {
+            _result = true;
+            return true;
+          }
+        });
+        //后缀名
+        this.expectExtensions.forEach(ele => {
+          const _extension = ele.substring(1);
+          if (_extension === extension) {
+            _result = true;
+            return true;
+          }
+        });
+        return this.types.length > 0 ? _result : true;
+      };
+      /**
+       * 文件大小判断
+       * @function
+       * @param {object} file 需要判断的文件
+       * @return {boolean}
+       */
+      const validateSize = file => {
+        if (
+          typeof this.limitSize !== "undefined" &&
+          !Number.isNaN(this.limitSize)
+        ) {
+          return file.size / 1024 < this.limitSize;
+        } else {
+          return true;
+        }
+      };
+      const validateTypeResult = validateType(file);
+      const validateSizeResult = validateSize(file);
       file._name = file.name;
       if (!validateTypeResult) {
         this.$message({
@@ -450,87 +623,49 @@ export default {
         });
         return false;
       }
-      this.addedNum++;
-      if (this.limitNum > 0 && this.limitNum < this.addedNum) {
+      //类型、大小校验通过后
+      if (this.limitNum > 0 && this.limitNum < this.addedNum + 1) {
         this.$message({
           type: "error",
           message: `最多只能上传${this.limitNum}个文件`
         });
-        this.uploader.files.forEach(_file => {
-          if (file.uniqueIdentifier === _file.uniqueIdentifier) {
-          }
-        });
-        this.addedNum--;
         this.$nextTick(() => {
           this.uploader.removeFile(file);
         });
         return false;
       }
-      this.waitingNum++;
+      this.uploadNumberMap.addFile(true);
     },
-    /**
-     * @description 类型判断
-     * @param file {object} 需要判断的文件
-     */
-    validateType(file) {
-      const fileType = file.fileType;
-      const fileName = file.name;
-      const extension = fileName.split(".")[fileName.split(".").length - 1];
-      let _result = false;
-      //具体mime类型
-      if (this.specificTypes.indexOf(fileType) > -1) {
-        return true;
-      }
-      //包含*的mime类型
-      this.involveTypes.forEach(ele => {
-        const _type = ele.match(/([^*]*)\*$/)[1];
-        if (fileType.indexOf(_type) > -1) {
-          _result = true;
-          return true;
-        }
-      });
-      //后缀名
-      this.expectExtensions.forEach(ele => {
-        const _extension = ele.substring(1);
-        if (_extension === extension) {
-          _result = true;
-          return true;
-        }
-      });
-      return this.types.length > 0 ? _result : true;
-    },
-    /**
-     * @description 文件大小判断
-     * @param file {object} 需要判断的文件
-     */
-    validateSize(file) {
-      if (
-        typeof this.limitSize !== "undefined" &&
-        !Number.isNaN(this.limitSize)
-      ) {
-        return file.size / 1024 < this.limitSize;
-      } else {
-        return true;
-      }
-    },
-    /**@description 加载文件
-     * @param ids {string | array} 需要加载的文件ids数组
-     * @param willReplace {boolean} 是否替换已有文件,默认为false
+    /**加载文件
+     * @param {string | array} ids 需要加载的文件ids数组
+     * @param {boolean} willReplace 是否替换已有文件,默认为false
      */
     loadFiles(ids, willReplace = false) {
-      const vm = this;
       if (ids === "") {
-        this.existedFiles = [];
+        this.existedFileList.clear();
         return false;
       }
       if (this.docURL.length === 0) {
         return false;
       }
+      const vm = this;
+      let willLoadIds = [];
+      const uploadedIds = this.uploadedIds;
+      const _ids = Array.isArray(ids) ? ids : ids.split(",");
+      //避免重复加载已上传的文件
+      _ids.forEach(id => {
+        if (uploadedIds.indexOf(id) === -1) {
+          willLoadIds.push(id);
+        }
+      });
+      if (willLoadIds.length === 0) {
+        return;
+      }
       axios
         .post(
           this.APIMap.get("query"),
           qs.stringify({
-            file_ids: Array.isArray(ids) ? ids.join(",") : ids
+            file_ids: willLoadIds.join(",")
           })
         )
         .then(res => {
@@ -545,39 +680,27 @@ export default {
               return false;
             }
             //TODO:
-            //validate type and validate number and validate size
+            //validate type and validate size
             if (data.file_info.length + vm.addedNum > vm.limitNum) {
-              // vm.$message({
-              //   type: "error",
-              //   message: `最多只能上传${vm.limitNum}，当前文件个数为${data
-              //     .file_info.length + vm.addedNum}`
-              // });
-              // vm.$emit("errorFn", {
-              //   error: "exceeded the limit",
-              //   arguments: {
-              //     limitNum: vm.limitNum,
-              //     uploadedNum: vm.addedNum,
-              //     existedNum: data.file_info.length
-              //   }
-              // });
+              vm.$message({
+                type: "error",
+                message: `最多只能上传${vm.limitNum}，当前文件个数为${data
+                  .file_info.length + vm.addedNum}`
+              });
             }
-            const _idsArr = [];
             data.file_info.forEach(file => {
               file._fileId = file.id;
-              // file._type = vm.typeFilter(file.extension);
               const extension = getExtension(file.oldName);
+              file.extension = extension;
               file.type = extension2Type(extension);
               file._name = file.oldName;
-              vm.$set(file, "dialogVisible", false);
-              _idsArr.push(file._fileId);
             });
             if (willReplace) {
-              vm.uploadedIds = [];
-              vm.uploadedFiles = [];
+              this.uploadedFileMap.clear();
             }
-            vm.uploadedIds = vm.uploadedIds.concat(_idsArr);
-            vm.uploadedFiles = vm.uploadedFiles.concat(data.file_info);
-            this.existedFiles = data.file_info;
+            this.uploadNumberMap.addFiles(data.file_info.length);
+            this.uploadedFileMap.add(data.file_info);
+            this.existedFileList.add(data.file_info);
           } else {
             vm.$message({
               type: "error",
@@ -590,13 +713,13 @@ export default {
       const vm = this;
       return {
         limitNum: vm.limitNum,
-        uploadedNum: vm.uploadedFiles.length,
-        existedNum: vm.existedFiles.length,
+        uploadedNum: this.uploadedFileMap.getLenth(),
+        existedNum: this.existedFileList.getLenth(),
         waitingNum: vm.waitingNum
       };
     },
     /**
-     * @description 重置组件
+     * 重置组件
      * @param delFromServer {Boolean} 是否从服务器删除已上传的附件
      */
     resetUpload(delFromServer = false) {
@@ -605,21 +728,18 @@ export default {
       }
       this.uploader.fileList = [];
       this.uploader.files = [];
-      this.uploadedFiles = [];
-      this.existedFiles = [];
-      this.addedNum = 0;
-      this.waitingNum = 0;
+      this.$refs.uploader.fileList = [];
+      this.uploadedFileMap.clear();
+      this.existedFileList.clear();
+      this.uploadNumberMap.clear();
     }
   },
   watch: {
     uploadedIds: function(val) {
-      let vm = this;
-      console.log("uploadedIds");
-      this.$emit("listChange", val, vm.uploadedFiles);
+      this.$emit("listChange", val, this.uploadedFiles, this.identifier);
     },
     fileIds(val) {
       this.loadFiles(this.fileIdsString);
-      this.addedNum = Array.isArray(val) ? val.length : val.split(",").length;
     },
     docURL(value, oldVal) {
       if (typeof value === "undefined" || typeof oldVal === "undefined") {
@@ -630,7 +750,19 @@ export default {
       if (value.length !== 0 && oldVal.length === 0) {
         this.loadFiles(this.fileIdsString);
       }
+    },
+    dialogVisible(value) {
+      if (value) {
+        this.$emit("dialog-toggle", true, this.identifier);
+        this.$emit("dialog-open", this.identifier);
+      } else {
+        this.$emit("dialog-toggle", false, this.identifier);
+        this.$emit("dialog-close", this.identifier);
+      }
     }
+  },
+  components: {
+    File
   }
 };
 </script>
@@ -673,8 +805,17 @@ $light-blue: #f5f7fa;
       border-color: $background-green;
     }
   }
+  .uploader-file {
+    border-bottom: none !important;
+  }
   .file {
     @include clearfix;
+    position: relative;
+    border-bottom: 1px solid #cdcdcd;
+    height: auto !important;
+    line-height: normal !important;
+    padding: 10px 0;
+    overflow: hidden;
     &:hover {
       background: $light-blue;
     }
@@ -682,7 +823,7 @@ $light-blue: #f5f7fa;
       float: left;
       text-align: center;
     }
-    .file-name {
+    &-name {
       width: 45%;
       text-align: left !important;
       padding-left: 10px;
@@ -690,16 +831,16 @@ $light-blue: #f5f7fa;
         margin-right: 5px;
       }
     }
-    .file-size,
-    .file-status {
+    &-size,
+    &-status {
       width: 10%;
     }
-    .file-finished {
+    &-finished {
       width: 30%;
     }
-    .file-progress {
+    &-progress {
       width: 20%;
-      .file-progress-wrap {
+      &-wrap {
         position: relative;
         width: 100%;
         height: 20px;
@@ -730,7 +871,7 @@ $light-blue: #f5f7fa;
         }
       }
     }
-    .file-actions {
+    &-actions {
       width: 15%;
       a {
         font-size: 16px;
@@ -742,16 +883,6 @@ $light-blue: #f5f7fa;
       }
     }
   }
-}
-
-.uploader-file,
-.file {
-  position: relative;
-  border-bottom: 1px solid #cdcdcd;
-  height: auto !important;
-  line-height: normal !important;
-  padding: 10px 0;
-  overflow: hidden;
 }
 .hide {
   display: none;

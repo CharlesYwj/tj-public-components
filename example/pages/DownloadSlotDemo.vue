@@ -1,17 +1,19 @@
 <template>
   <download :fileIds="['comm00006f5f338f7972446e9f7f07191ce37e84']">
-      <template slot="download-file" slot-scope="file">
-          <div class="pull-left percent60">{{file.file.oldName}}</div>
-          <div class="pull-left percent20">已上传</div>
-          <div class="pull-left percent20">
-              <a href="javascript:void(0);">打开</a>
-          </div>
-      </template>
+    <template slot="file-actions-slot" slot-scope="scope">
+      <a href="javascript:void(0);" @click="open(scope.file)">查看</a>
+    </template>
   </download>
 </template>
 
 <script>
-export default {};
+export default {
+  methods:{
+    open(){
+      console.log(...arguments);
+    }
+  }
+};
 </script>
 
 <style lang="scss" scoped>

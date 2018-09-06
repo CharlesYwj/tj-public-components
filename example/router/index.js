@@ -8,6 +8,7 @@ import DownloadDemo from "../pages/DownloadDemo.vue";
 import TreeDialog from "../pages/TreeDialogDemo.vue";
 import DownloadSlotDemo from "../pages/DownloadSlotDemo.vue";
 import UploadInDialog from "../pages/UploadInDialog.vue";
+import UploadInListItemDialogDemo from "../pages/UploadInListItemDialogDemo.vue";
 
 const router = new Router({
   routes: [{
@@ -28,6 +29,10 @@ const router = new Router({
     }, {
       path: "/uploadInDialog",
       component: UploadInDialog
+    },
+    {
+      path: "/UploadInListItemDialogDemo",
+      component: UploadInListItemDialogDemo
     }
   ]
 });

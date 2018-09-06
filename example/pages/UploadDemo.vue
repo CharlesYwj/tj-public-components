@@ -17,8 +17,10 @@
 export default {
   mounted() {
     setTimeout(() => {
-      this.fileIds = ["comm0000cc541ad129914ad7881b914c97e0f6f6"];
       this.docURL = "http://d.test.app.pubob.ob.io/";
+    }, 1000);
+    setTimeout(() => {
+      this.fileIds = ["comm0000f37a1756f81d4e20bbf8287d3e6897c8","comm0000f72d8c6b96484cbe9b6859f82fbf1000"];
     }, 3000);
   },
   data() {

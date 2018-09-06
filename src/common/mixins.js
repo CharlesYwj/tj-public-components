@@ -1,7 +1,4 @@
-import {
-  extension2Type,
-  getExtension
-} from "./utils";
+import { extension2Type, getExtension } from "./utils";
 
 export const iconFilterMixin = {
   filters: {
@@ -20,7 +17,7 @@ export const iconFilterMixin = {
       if (fileType && iconMap[fileType]) {
         return baseClass + iconMap[fileType];
       } else {
-        return `${baseClass}fa-file-o`;
+        return `${baseClass} fa-file-o`;
       }
     },
     fileExtension(fileName) {

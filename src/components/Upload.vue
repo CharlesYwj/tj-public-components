@@ -267,7 +267,7 @@ export default {
     },
     //限定文件类型
     types: {
-      type: [Array],
+      type: [Array, String],
       default: () => []
     },
     //限定文件个数

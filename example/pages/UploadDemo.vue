@@ -3,7 +3,7 @@
     <el-button @click="changeFileIds">changeFileIds</el-button>
     <el-button @click="delFiles">delFiles</el-button>
     <el-button @click="reset">resetUpload</el-button>
-    <upload ref="upload" :docURL="docURL" :fileIds="fileIds"  :options="options" 
+    <upload ref="upload" :isDrop="false" :docURL="docURL" :fileIds="fileIds"  :options="options" :types="['image/*']"
           @listChange="listChange" @click-delete-btn="clickDeleteBtn" 
           @after-delete-confirm="afterDeleteConfirm" @dialog-toggle="dialogToggle">
       <template slot="file-actions-slot" slot-scope="props">

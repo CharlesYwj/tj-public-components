@@ -1,6 +1,6 @@
 import Vue from "vue";
-// import Public from "../dist/public-components";
- import Public from "../src";
+import Public from "../dist/public-components";
+//  import Public from "../src";
 import App from "./App.vue";
 import {
   MessageBox,

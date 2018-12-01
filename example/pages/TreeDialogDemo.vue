@@ -13,7 +13,7 @@
     @cacel-check="cancelCheck"
     @set-result="setResult">
    </tree-dialog>
-   <tree-dialog 
+   <!-- <tree-dialog 
     ref="test2"
     class="list-query el-input el-input--small"
     inputClass="el-input__inner"
@@ -21,7 +21,7 @@
     :props="props"
     :data="testData"
     :init="initData2">
-   </tree-dialog>
+   </tree-dialog> -->
    <button type="button" @click="clear">清空</button>
    <button type="button" @click="changeInit">changeInit</button>
    <button type="button" @click="changeInit">changeInit2</button>
@@ -104,7 +104,7 @@ export default {
         }
       ];
     }, 400);
-    this.$refs.test.setWillOpen(false);
+    // this.$refs.test.setWillOpen(false);
     // axios.post("/api/teammanagerunit/query").then(res => {
     //   this.testData = list2tree(res.data.data, "id", "unitSubjectionParentId");
     // });
